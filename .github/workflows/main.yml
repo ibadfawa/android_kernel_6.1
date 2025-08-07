@@ -1,4 +1,4 @@
-name: Auto Build Kernel 6.1 with System Clang + CCache
+name: Kernel Build via Script with Cached Neutron Clang
 
 on:
   push:
@@ -9,52 +9,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Kernel Source
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install Dependencies
-      run: |
-        sudo apt update
-        sudo apt install -y build-essential bc bison flex libssl-dev \
-          libelf-dev python3 python3-pip clang lld ccache \
-          gcc-aarch64-linux-gnu
-
-    - name: Setup CCache
-      uses: actions/cache@v3
+    - name: Cache Neutron Clang Toolchain
+      uses: actions/cache@v4
       with:
-        path: ~/.ccache
-        key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
+        path: ~/toolchains/neutron-clang
+        key: neutron-clang-${{ runner.os }}
         restore-keys: |
-          ccache-${{ runner.os }}-${{ github.ref_name }}-
-          ccache-${{ runner.os }}-
+          neutron-clang-
 
-    - name: Set Environment Variables
+    - name: Cache .requirements marker (optional)
+      uses: actions/cache@v4
+      with:
+        path: .requirements
+        key: requirements-installed-${{ runner.os }}
+        restore-keys: |
+          requirements-installed-
+
+    - name: Make build.sh executable
+      run: chmod +x build.sh
+
+    - name: Run build script
       run: |
-        echo "ARCH=arm64" >> $GITHUB_ENV
-        echo "SUBARCH=arm64" >> $GITHUB_ENV
-        echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "CC=ccache clang" >> $GITHUB_ENV
-        echo "LD=ld.lld" >> $GITHUB_ENV
-        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        echo "USE_CCACHE=1" >> $GITHUB_ENV
-        ccache -z  # Reset stats
+        ./build.sh
 
-    - name: Build Kernel with gki_defconfig
-      working-directory: kernel
-      run: |
-        make O=out ARCH=$ARCH SUBARCH=$SUBARCH gki_defconfig
-        make -j$(nproc) O=out \
-          ARCH=$ARCH SUBARCH=$SUBARCH \
-          CC="$CC" LD=$LD \
-          CROSS_COMPILE=$CROSS_COMPILE \
-          LLVM=1 LLVM_IAS=1
-
-    - name: Show CCache Stats
-      run: ccache -s
-
-    - name: Upload Kernel Image
+    - name: Upload built Image
       uses: actions/upload-artifact@v4
       with:
         name: kernel-image
-        path: |
-          kernel/out/arch/arm64/boot/Image*
+        path: build/Image
