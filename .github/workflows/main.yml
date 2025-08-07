@@ -1,31 +1,43 @@
-name: Build Kernel 6.1 with System Clang
+name: Auto Build Kernel 6.1 with System Clang + CCache
 
 on:
   push:
   pull_request:
-  
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Kernel Source
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
 
     - name: Install Dependencies
       run: |
         sudo apt update
         sudo apt install -y build-essential bc bison flex libssl-dev \
-          libelf-dev python3 python3-pip clang lld \
+          libelf-dev python3 python3-pip clang lld ccache \
           gcc-aarch64-linux-gnu
 
-    - name: Set up Environment Variables
+    - name: Setup CCache
+      uses: actions/cache@v3
+      with:
+        path: ~/.ccache
+        key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
+        restore-keys: |
+          ccache-${{ runner.os }}-${{ github.ref_name }}-
+          ccache-${{ runner.os }}-
+
+    - name: Set Environment Variables
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "CC=clang" >> $GITHUB_ENV
+        echo "CC=ccache clang" >> $GITHUB_ENV
         echo "LD=ld.lld" >> $GITHUB_ENV
+        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        echo "USE_CCACHE=1" >> $GITHUB_ENV
+        ccache -z  # Reset stats
 
     - name: Build Kernel with gki_defconfig
       working-directory: kernel
@@ -33,13 +45,15 @@ jobs:
         make O=out ARCH=$ARCH SUBARCH=$SUBARCH gki_defconfig
         make -j$(nproc) O=out \
           ARCH=$ARCH SUBARCH=$SUBARCH \
-          CC=$CC LD=$LD \
+          CC="$CC" LD=$LD \
           CROSS_COMPILE=$CROSS_COMPILE \
           LLVM=1 LLVM_IAS=1
 
+    - name: Show CCache Stats
+      run: ccache -s
+
     - name: Upload Kernel Image
-      uses: actions/upload-artifact@v4
-      
+      uses: actions/upload-artifact@v3
       with:
         name: kernel-image
         path: |
