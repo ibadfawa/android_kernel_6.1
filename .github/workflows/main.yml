@@ -10,7 +10,7 @@ jobs:
 
     steps:
     - name: Checkout Kernel Source
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install Dependencies
       run: |
@@ -53,7 +53,7 @@ jobs:
       run: ccache -s
 
     - name: Upload Kernel Image
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: kernel-image
         path: |
