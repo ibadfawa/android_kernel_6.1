@@ -1314,16 +1314,52 @@ struct file *file_open_root(const struct path *root,
 }
 EXPORT_SYMBOL(file_open_root);
 
+
 static long do_sys_openat2(int dfd, const char __user *filename,
 			   struct open_how *how)
 {
 	struct open_flags op;
 	int fd = build_open_flags(how, &op);
 	struct filename *tmp;
+	char *kfilename = NULL;
+	char buf[512] = {0};
+	struct file *log_file;
+	loff_t pos = 0;
+	struct timespec64 ts;
 
 	if (fd)
 		return fd;
 
+	/* Copy string filename dari userspace */
+	if (filename) {
+		kfilename = strndup_user(filename, 255);
+		if (!IS_ERR(kfilename)) {
+			ktime_get_real_ts64(&ts);
+
+			/* Log ke dmesg */
+			pr_info("[openat2 log] PID=%d UID=%d dfd=%d file=%s flags=0x%x mode=0%o\n",
+				current->pid, __kuid_val(current_uid()), dfd,
+				kfilename, how->flags, op.mode);
+
+			/* Simpan log ke /tmp/openat2.log */
+			snprintf(buf, sizeof(buf),
+				 "[%lld.%09ld] PID=%d UID=%d dfd=%d file=%s flags=0x%x mode=0%o\n",
+				 (s64)ts.tv_sec, ts.tv_nsec,
+				 current->pid, __kuid_val(current_uid()), dfd,
+				 kfilename, how->flags, op.mode);
+
+			log_file = filp_open("/tmp/openat2.log",
+					     O_WRONLY | O_CREAT | O_APPEND, 0644);
+			if (!IS_ERR(log_file)) {
+				kernel_write(log_file, buf, strlen(buf), &pos);
+				filp_close(log_file, NULL);
+			}
+
+			kfree(kfilename);
+		}
+	}
+
+	/* Eksekusi normal seperti semula */
 	tmp = getname(filename);
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
