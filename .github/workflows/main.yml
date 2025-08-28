@@ -9,25 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    
+    
+    
 
-    - name: Cache Neutron Clang Toolchain
-      uses: actions/cache@v4
-      with:
-        path: ~/toolchains/neutron-clang
-        key: neutron-clang-${{ runner.os }}
-        restore-keys: |
-          neutron-clang-
-
-    - name: Cache .requirements marker (optional)
-      uses: actions/cache@v4
-      with:
-        path: .requirements
-        key: requirements-installed-${{ runner.os }}
-        restore-keys: |
-          requirements-installed-
-
+    
     - name: Make build.sh executable
       run: chmod +x build.sh
 
